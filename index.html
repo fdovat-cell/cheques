@@ -85,22 +85,24 @@ header.top .sub{color:var(--ink-soft);font-size:13px;margin-top:4px;}
 .btn.secondary{background:var(--paper);color:var(--ink);}
 .btn.secondary:hover{background:var(--paper-2);}
 
-/* CALENDAR */
-.calendar{
-  display:grid;grid-template-columns:repeat(7,1fr);
+/* CALENDAR (tabla real: pagina bien al imprimir) */
+table.calendar{
+  width:100%;
+  border-collapse:collapse;
+  table-layout:fixed;
   border-left:1px solid var(--line);border-top:1px solid var(--line);
   margin-bottom:26px;
 }
-.dow{
+table.calendar th.dow{
   background:var(--accent-ink);color:var(--paper);
   padding:6px 8px;font-size:11px;text-transform:uppercase;letter-spacing:.8px;
-  border-right:1px solid var(--line);text-align:left;
+  border-right:1px solid var(--line);text-align:left;font-weight:500;
 }
-.day{
-  min-height:96px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);
-  padding:5px 6px;position:relative;background:var(--paper);
+table.calendar td.day{
+  height:96px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);
+  padding:5px 6px;position:relative;background:var(--paper);vertical-align:top;
 }
-.day.blank{background:var(--paper-2);}
+table.calendar td.day.blank{background:var(--paper-2);}
 .day .num{
   font-family:'Source Serif 4',serif;font-size:15px;color:var(--ink-soft);
   display:flex;justify-content:space-between;align-items:center;
@@ -177,7 +179,10 @@ footer.hist{margin-top:30px;padding-top:14px;border-top:1px dashed var(--line);f
 @media print{
   .toolbar,.no-print,footer.hist{display:none !important;}
   body{background:#fff;}
-  .day{min-height:70px;}
+  table.calendar{page-break-inside:auto;}
+  table.calendar thead{display:table-header-group;}
+  table.calendar tr.calendar-week{break-inside:avoid;page-break-inside:avoid;}
+  table.calendar td.day{height:auto;min-height:70px;}
 }
 </style>
 </head>
@@ -231,7 +236,12 @@ footer.hist{margin-top:30px;padding-top:14px;border-top:1px dashed var(--line);f
     <button class="btn" id="btnNuevo">+ Nuevo cheque</button>
   </div>
 
-  <div class="calendar" id="calendar"></div>
+  <table class="calendar" id="calendar">
+    <thead>
+      <tr id="calendarDow"></tr>
+    </thead>
+    <tbody id="calendarBody"></tbody>
+  </table>
 
   <div class="summary-grid" id="summaryGrid"></div>
 
@@ -368,17 +378,22 @@ function renderCalendar(){
   const startOffset = (firstDay.getDay() + 6) % 7;
   const totalDays = lastDay.getDate();
 
-  const cal = document.getElementById('calendar');
-  cal.innerHTML = DOW.map(d=>`<div class="dow">${d}</div>`).join('');
-
-  for(let i=0;i<startOffset;i++){
-    cal.innerHTML += `<div class="day blank"></div>`;
-  }
+  // Encabezado de días de la semana (una sola fila, en <thead>)
+  document.getElementById('calendarDow').innerHTML =
+    DOW.map(d=>`<th class="dow">${d}</th>`).join('');
 
   const monthCheques = applyFilters(cheques.filter(c=>{
     const d = c.fecha_cobro;
     return d >= isoLocal(firstDay) && d <= isoLocal(lastDay);
   }), f);
+
+  // Armamos la lista plana de celdas (blancos + días) y después la partimos en filas de 7.
+  // Al ser filas <tr> reales, el navegador pagina semana completa, nunca corta una fila al medio.
+  const cellsHtml = [];
+
+  for(let i=0;i<startOffset;i++){
+    cellsHtml.push(`<td class="day blank"></td>`);
+  }
 
   for(let day=1; day<=totalDays; day++){
     const dateObj = new Date(y,m,day);
@@ -391,16 +406,29 @@ function renderCalendar(){
         <span class="imp">${c.moneda} ${fmtMoney(c.importe)}</span>
       </div>`;
     }).join('');
-    cal.innerHTML += `<div class="day" data-date="${iso}">
+    cellsHtml.push(`<td class="day" data-date="${iso}">
       <div class="num"><span>${day}</span><span class="add no-print" data-date="${iso}">+</span></div>
       ${chipsHtml}
-    </div>`;
+    </td>`);
   }
 
-  cal.querySelectorAll('.chip').forEach(el=>{
+  // Completamos la última semana con celdas en blanco para que todas las filas tengan 7 columnas
+  while(cellsHtml.length % 7 !== 0){
+    cellsHtml.push(`<td class="day blank"></td>`);
+  }
+
+  let rowsHtml = '';
+  for(let i=0; i<cellsHtml.length; i+=7){
+    rowsHtml += `<tr class="calendar-week">${cellsHtml.slice(i, i+7).join('')}</tr>`;
+  }
+
+  const body = document.getElementById('calendarBody');
+  body.innerHTML = rowsHtml;
+
+  body.querySelectorAll('.chip').forEach(el=>{
     el.addEventListener('click', ()=>openEdit(el.dataset.id));
   });
-  cal.querySelectorAll('.add').forEach(el=>{
+  body.querySelectorAll('.add').forEach(el=>{
     el.addEventListener('click', ()=>openNew(el.dataset.date));
   });
 }
