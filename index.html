@@ -184,9 +184,37 @@ footer.hist{margin-top:30px;padding-top:14px;border-top:1px dashed var(--line);f
   table.calendar tr.calendar-week{break-inside:avoid;page-break-inside:avoid;}
   table.calendar td.day{height:auto;min-height:70px;}
 }
+
+/* PANTALLA DE ACCESO (filtro simple, no es seguridad real) */
+#gateBg{
+  position:fixed;inset:0;background:var(--paper);
+  display:flex;align-items:center;justify-content:center;z-index:100;
+}
+#gateBg.hidden{display:none;}
+.gate-box{
+  background:var(--paper-2);border:1px solid var(--ink);padding:28px 26px;width:280px;max-width:90vw;text-align:center;
+}
+.gate-box h2{font-size:18px;margin-bottom:14px;}
+.gate-box input{
+  width:100%;border:1px solid var(--line);background:var(--paper);
+  padding:8px;font-size:14px;margin-bottom:10px;font-family:'IBM Plex Sans',sans-serif;text-align:center;
+}
+.gate-box .gate-error{color:var(--pendiente);font-size:12px;min-height:16px;margin-bottom:6px;}
+body.gate-active .wrap{display:none;}
 </style>
 </head>
-<body>
+<body class="gate-active">
+
+<div id="gateBg">
+  <div class="gate-box">
+    <h2>Control de Cheques</h2>
+    <input type="email" id="gateEmail" placeholder="Email" autocomplete="username">
+    <input type="password" id="gateInput" placeholder="Contraseña" autocomplete="current-password">
+    <div class="gate-error" id="gateError"></div>
+    <button class="btn" id="gateBtn" style="width:100%;">Entrar</button>
+  </div>
+</div>
+
 <div class="wrap">
 
   <header class="top">
@@ -198,6 +226,7 @@ footer.hist{margin-top:30px;padding-top:14px;border-top:1px dashed var(--line);f
       <button id="prevMonth">‹</button>
       <div class="mlabel" id="monthLabel">—</div>
       <button id="nextMonth">›</button>
+      <button class="btn secondary" id="btnLogout" style="margin-left:10px;font-size:12px;padding:6px 10px;">Salir</button>
     </div>
   </header>
 
@@ -231,7 +260,8 @@ footer.hist{margin-top:30px;padding-top:14px;border-top:1px dashed var(--line);f
       <input type="date" id="fHasta">
     </div>
     <div class="spacer"></div>
-    <button class="btn secondary" id="btnExport">Exportar Excel</button>
+    <button class="btn secondary" id="btnExport">Exportar Excel (mes)</button>
+    <button class="btn secondary" id="btnBackup">Backup completo</button>
     <button class="btn secondary" id="btnPrint">Imprimir</button>
     <button class="btn" id="btnNuevo">+ Nuevo cheque</button>
   </div>
@@ -309,6 +339,45 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const MESES = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
 const DOW = ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"];
+
+// ==== ACCESO (login real con Supabase Auth) ====
+function showApp(){
+  document.getElementById('gateBg').classList.add('hidden');
+  document.body.classList.remove('gate-active');
+  loadCheques();
+}
+function showGate(){
+  document.getElementById('gateBg').classList.remove('hidden');
+  document.body.classList.add('gate-active');
+}
+
+async function tryLogin(){
+  const email = document.getElementById('gateEmail').value.trim();
+  const password = document.getElementById('gateInput').value;
+  const gateError = document.getElementById('gateError');
+  gateError.textContent = '';
+  if(!email || !password){ gateError.textContent = 'Completá email y contraseña'; return; }
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+  if(error){
+    gateError.textContent = 'Email o contraseña incorrectos';
+    return;
+  }
+  showApp();
+}
+
+document.getElementById('gateBtn').addEventListener('click', tryLogin);
+['gateEmail','gateInput'].forEach(id=>{
+  document.getElementById(id).addEventListener('keydown', e=>{ if(e.key === 'Enter') tryLogin(); });
+});
+document.getElementById('btnLogout').addEventListener('click', async ()=>{
+  await sb.auth.signOut();
+  location.reload();
+});
+
+(async function checkSession(){
+  const { data: { session } } = await sb.auth.getSession();
+  if(session){ showApp(); } else { showGate(); }
+})();
 
 let cheques = [];        // todos los cheques desde supabase
 let current = new Date(2026, 8, 1); // setiembre 2026 (mes index 8)
@@ -587,6 +656,22 @@ document.getElementById('btnExport').addEventListener('click', ()=>{
 
 document.getElementById('btnPrint').addEventListener('click', ()=>window.print());
 
+// BACKUP COMPLETO (todos los cheques, todas las fechas, sin filtrar)
+document.getElementById('btnBackup').addEventListener('click', ()=>{
+  if(cheques.length === 0){ alert('No hay cheques cargados todavía.'); return; }
+  const rows = [["Fecha","Moneda","Importe","Cobrado","N° Cheque","Destinatario","ID"]];
+  const sorted = [...cheques].sort((a,b)=> a.fecha_cobro < b.fecha_cobro ? -1 : 1);
+  sorted.forEach(c=>{
+    rows.push([c.fecha_cobro, c.moneda, c.importe, c.cobrado?"Si":"No", c.n_cheque||"", c.destinatario||"", c.id]);
+  });
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [{wch:11},{wch:7},{wch:11},{wch:8},{wch:12},{wch:20},{wch:8}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Backup completo");
+  const hoy = isoLocal(new Date());
+  XLSX.writeFile(wb, `backup_cheques_TODOS_${hoy}.xlsx`);
+});
+
 // IMPORTAR HISTORICO (una sola vez)
 const HISTORICO = [{"fecha_cobro": "2026-09-01", "moneda": "$", "importe": 5700, "n_cheque": "473654", "destinatario": "MICHEL YO", "cobrado": true}, {"fecha_cobro": "2026-09-02", "moneda": "$", "importe": 7500, "n_cheque": "402834", "destinatario": "MICHEL YO", "cobrado": true}, {"fecha_cobro": "2026-09-02", "moneda": "$", "importe": 2650, "n_cheque": "644034", "destinatario": "AMU 2", "cobrado": true}, {"fecha_cobro": "2026-09-03", "moneda": "$", "importe": 12500, "n_cheque": "107799", "destinatario": "AMU 2", "cobrado": true}, {"fecha_cobro": "2026-09-03", "moneda": "$", "importe": 5653, "n_cheque": "699046", "destinatario": "BLODWEN", "cobrado": true}, {"fecha_cobro": "2026-09-03", "moneda": "$", "importe": 8900, "n_cheque": "473666", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-09-04", "moneda": "$", "importe": 6876, "n_cheque": "402835", "destinatario": "MICHEL YO", "cobrado": true}, {"fecha_cobro": "2026-09-04", "moneda": "$", "importe": 7700, "n_cheque": "402850", "destinatario": "MICHEL DEBE", "cobrado": true}, {"fecha_cobro": "2026-09-07", "moneda": "$", "importe": 2667, "n_cheque": "644042", "destinatario": "AMU 2", "cobrado": true}, {"fecha_cobro": "2026-09-07", "moneda": "$", "importe": 4800, "n_cheque": "107800", "destinatario": "MICHEL DEBE", "cobrado": true}, {"fecha_cobro": "2026-09-08", "moneda": "$", "importe": 5760, "n_cheque": "473655", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-09-08", "moneda": "$", "importe": 7490, "n_cheque": "644043", "destinatario": "MICHEL YO", "cobrado": true}, {"fecha_cobro": "2026-09-09", "moneda": "$", "importe": 13500, "n_cheque": "226769", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-09-09", "moneda": "$", "importe": 8970, "n_cheque": "473667", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-09-10", "moneda": "$", "importe": 13000, "n_cheque": "473657", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-09-10", "moneda": "$", "importe": 14900, "n_cheque": "762380", "destinatario": "BLODWEN", "cobrado": false}, {"fecha_cobro": "2026-09-10", "moneda": "$", "importe": 7900, "n_cheque": "473658", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-09-11", "moneda": "$", "importe": 10900, "n_cheque": "226775", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-09-14", "moneda": "$", "importe": 8760, "n_cheque": "473868", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-09-14", "moneda": "$", "importe": 3638, "n_cheque": "762381", "destinatario": "BLODWEN", "cobrado": false}, {"fecha_cobro": "2026-09-15", "moneda": "$", "importe": 10900, "n_cheque": "324884", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-09-15", "moneda": "$", "importe": 9700, "n_cheque": "473653", "destinatario": "MICHEL DEBE", "cobrado": false}, {"fecha_cobro": "2026-09-16", "moneda": "$", "importe": 5760, "n_cheque": "473656", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-09-17", "moneda": "$", "importe": 5850, "n_cheque": "473659", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-09-17", "moneda": "$", "importe": 2620, "n_cheque": "699031", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-09-18", "moneda": "$", "importe": 15500, "n_cheque": "324888", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-09-18", "moneda": "$", "importe": 9450, "n_cheque": "524368", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-09-21", "moneda": "$", "importe": 15500, "n_cheque": "324899", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-09-21", "moneda": "$", "importe": 7900, "n_cheque": "473664", "destinatario": "MICHEL DEBE", "cobrado": false}, {"fecha_cobro": "2026-09-22", "moneda": "$", "importe": 11500, "n_cheque": "324890", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-09-22", "moneda": "$", "importe": 7900, "n_cheque": "473660", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-09-23", "moneda": "$", "importe": 7750, "n_cheque": "473669", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-09-24", "moneda": "$", "importe": 8950, "n_cheque": "524371", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-09-25", "moneda": "$", "importe": 11500, "n_cheque": "324891", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-09-25", "moneda": "$", "importe": 8500, "n_cheque": "473663", "destinatario": "MICHEL DEBE", "cobrado": false}, {"fecha_cobro": "2026-09-28", "moneda": "$", "importe": 7900, "n_cheque": "473661", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-09-29", "moneda": "$", "importe": 7080, "n_cheque": "402836", "destinatario": "BOLSAS", "cobrado": false}, {"fecha_cobro": "2026-09-29", "moneda": "$", "importe": 7490, "n_cheque": "644044", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-09-30", "moneda": "$", "importe": 13900, "n_cheque": "402846", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-09-30", "moneda": "$", "importe": 7965, "n_cheque": "473665", "destinatario": "MICHEL DEBE", "cobrado": false}, {"fecha_cobro": "2026-10-01", "moneda": "$", "importe": 2660, "n_cheque": "699037", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-10-02", "moneda": "$", "importe": 8760, "n_cheque": "524358", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-10-02", "moneda": "$", "importe": 5260, "n_cheque": "762379", "destinatario": "ANTONIO", "cobrado": false}, {"fecha_cobro": "2026-10-05", "moneda": "$", "importe": 15500, "n_cheque": "324899", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-10-06", "moneda": "$", "importe": 12500, "n_cheque": "402847", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-10-07", "moneda": "$", "importe": 6200, "n_cheque": "473670", "destinatario": "MICHEL DEBE", "cobrado": false}, {"fecha_cobro": "2026-10-07", "moneda": "$", "importe": 2740, "n_cheque": "699039", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-10-08", "moneda": "$", "importe": 16900, "n_cheque": "402841", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-10-08", "moneda": "$", "importe": 8900, "n_cheque": "576616", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-10-09", "moneda": "$", "importe": 7760, "n_cheque": "524359", "destinatario": "MICHEL DEBE", "cobrado": false}, {"fecha_cobro": "2026-10-09", "moneda": "$", "importe": 9800, "n_cheque": "524364", "destinatario": "MICHEL DEBE", "cobrado": false}, {"fecha_cobro": "2026-10-13", "moneda": "$", "importe": 16500, "n_cheque": "324900", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-10-13", "moneda": "$", "importe": 5500, "n_cheque": "762377", "destinatario": "MICHEL DEBE", "cobrado": false}, {"fecha_cobro": "2026-10-13", "moneda": "$", "importe": 12800, "n_cheque": "699043", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-10-13", "moneda": "$", "importe": 7230, "n_cheque": "402837", "destinatario": "BOLSAS", "cobrado": false}, {"fecha_cobro": "2026-10-14", "moneda": "$", "importe": 6550, "n_cheque": "473671", "destinatario": "MICHEL DEBE", "cobrado": false}, {"fecha_cobro": "2026-10-14", "moneda": "$", "importe": 9800, "n_cheque": "524365", "destinatario": "MICHEL DEBE", "cobrado": false}, {"fecha_cobro": "2026-10-15", "moneda": "$", "importe": 14500, "n_cheque": "524369", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-10-15", "moneda": "$", "importe": 10800, "n_cheque": "699032", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-10-16", "moneda": "$", "importe": 12500, "n_cheque": "402842", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-10-16", "moneda": "$", "importe": 7550, "n_cheque": "524360", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-10-19", "moneda": "$", "importe": 12500, "n_cheque": "823275", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-10-19", "moneda": "$", "importe": 6500, "n_cheque": "644036", "destinatario": "MICHEL DEBE", "cobrado": false}, {"fecha_cobro": "2026-10-19", "moneda": "$", "importe": 10900, "n_cheque": "576608", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-10-20", "moneda": "$", "importe": 14900, "n_cheque": "473251", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-10-20", "moneda": "$", "importe": 11950, "n_cheque": "524375", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-10-21", "moneda": "$", "importe": 7300, "n_cheque": "524353", "destinatario": "MICHEL DEBE", "cobrado": false}, {"fecha_cobro": "2026-10-21", "moneda": "$", "importe": 9800, "n_cheque": "524366", "destinatario": "MICHEL DEBE", "cobrado": false}, {"fecha_cobro": "2026-10-22", "moneda": "$", "importe": 14500, "n_cheque": "473672", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-10-22", "moneda": "$", "importe": 11800, "n_cheque": "576609", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-10-23", "moneda": "$", "importe": 9500, "n_cheque": "576617", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-10-26", "moneda": "$", "importe": 13500, "n_cheque": "473252", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-10-26", "moneda": "$", "importe": 12800, "n_cheque": "699044", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-10-26", "moneda": "$", "importe": 7550, "n_cheque": "524361", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-10-27", "moneda": "$", "importe": 5900, "n_cheque": "644028", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-10-28", "moneda": "$", "importe": 6700, "n_cheque": "524354", "destinatario": "MICHEL DEBE", "cobrado": false}, {"fecha_cobro": "2026-10-28", "moneda": "$", "importe": 9800, "n_cheque": "524367", "destinatario": "MICHEL DEBE", "cobrado": false}, {"fecha_cobro": "2026-10-29", "moneda": "$", "importe": 13000, "n_cheque": "473674", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-10-29", "moneda": "$", "importe": 11890, "n_cheque": "576610", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-10-30", "moneda": "$", "importe": 7380, "n_cheque": "402838", "destinatario": "BOLSAS", "cobrado": false}, {"fecha_cobro": "2026-10-30", "moneda": "$", "importe": 6900, "n_cheque": "762382", "destinatario": "MICHEL DEBE", "cobrado": false}, {"fecha_cobro": "2026-10-30", "moneda": "$", "importe": 9500, "n_cheque": "576618", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-10-30", "moneda": "$", "importe": 8900, "n_cheque": "699028", "destinatario": "MICHEL DEBE", "cobrado": false}, {"fecha_cobro": "2026-11-02", "moneda": "$", "importe": 6500, "n_cheque": "644046", "destinatario": "MICHEL DEBE", "cobrado": false}, {"fecha_cobro": "2026-11-02", "moneda": "$", "importe": 12896, "n_cheque": "699045", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-11-03", "moneda": "$", "importe": 14500, "n_cheque": "524355", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-11-03", "moneda": "$", "importe": 8490, "n_cheque": "644037", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-11-04", "moneda": "$", "importe": 6500, "n_cheque": "644035", "destinatario": "MICHEL DEBE", "cobrado": false}, {"fecha_cobro": "2026-11-05", "moneda": "$", "importe": 12400, "n_cheque": "576607", "destinatario": "MICHEL DEBE", "cobrado": false}, {"fecha_cobro": "2026-11-05", "moneda": "$", "importe": 8650, "n_cheque": "576622", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-11-06", "moneda": "$", "importe": 14500, "n_cheque": "524372", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-11-06", "moneda": "$", "importe": 6950, "n_cheque": "644030", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-11-09", "moneda": "$", "importe": 13500, "n_cheque": "524356", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-11-10", "moneda": "$", "importe": 11890, "n_cheque": "576611", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-11-10", "moneda": "$", "importe": 8900, "n_cheque": "699029", "destinatario": "MICHEL DEBE", "cobrado": false}, {"fecha_cobro": "2026-11-11", "moneda": "$", "importe": 8650, "n_cheque": "576623", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-11-11", "moneda": "$", "importe": 5900, "n_cheque": "644029", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-11-12", "moneda": "$", "importe": 14500, "n_cheque": "524362", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-11-12", "moneda": "$", "importe": 12500, "n_cheque": "576612", "destinatario": "MICHEL DEBE", "cobrado": false}, {"fecha_cobro": "2026-11-13", "moneda": "$", "importe": 14000, "n_cheque": "524373", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-11-13", "moneda": "$", "importe": 6500, "n_cheque": "644047", "destinatario": "MICHEL DEBE", "cobrado": false}, {"fecha_cobro": "2026-11-16", "moneda": "$", "importe": 6950, "n_cheque": "644031", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-11-16", "moneda": "$", "importe": 9350, "n_cheque": "644050", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-11-17", "moneda": "$", "importe": 17000, "n_cheque": "576619", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-11-17", "moneda": "$", "importe": 8490, "n_cheque": "644038", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-11-18", "moneda": "$", "importe": 7490, "n_cheque": "644045", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-11-19", "moneda": "$", "importe": 14500, "n_cheque": "576604", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-11-19", "moneda": "$", "importe": 10900, "n_cheque": "644048", "destinatario": "MICHEL DEBE", "cobrado": false}, {"fecha_cobro": "2026-11-20", "moneda": "$", "importe": 9500, "n_cheque": "576614", "destinatario": "MICHEL DEBE", "cobrado": false}, {"fecha_cobro": "2026-11-20", "moneda": "$", "importe": 9300, "n_cheque": "699047", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-11-23", "moneda": "$", "importe": 14000, "n_cheque": "576605", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-11-23", "moneda": "$", "importe": 9500, "n_cheque": "699040", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-11-24", "moneda": "$", "importe": 11500, "n_cheque": "576621", "destinatario": "MICHEL DEBE", "cobrado": false}, {"fecha_cobro": "2026-11-25", "moneda": "$", "importe": 9270, "n_cheque": "576624", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-11-25", "moneda": "$", "importe": 10800, "n_cheque": "699033", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-11-26", "moneda": "$", "importe": 18000, "n_cheque": "644033", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-11-26", "moneda": "$", "importe": 9300, "n_cheque": "699048", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-11-27", "moneda": "$", "importe": 8490, "n_cheque": "644039", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-11-30", "moneda": "$", "importe": 9500, "n_cheque": "576615", "destinatario": "MICHEL DEBE", "cobrado": false}, {"fecha_cobro": "2026-11-30", "moneda": "$", "importe": 8490, "n_cheque": "644040", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-12-01", "moneda": "$", "importe": 5900, "n_cheque": "699026", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-12-02", "moneda": "$", "importe": 10800, "n_cheque": "699034", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-12-03", "moneda": "$", "importe": 18000, "n_cheque": "644041", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-12-03", "moneda": "$", "importe": 9290, "n_cheque": "699049", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-12-04", "moneda": "$", "importe": 8900, "n_cheque": "644049", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-12-04", "moneda": "$", "importe": 9500, "n_cheque": "699041", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-12-07", "moneda": "$", "importe": 9200, "n_cheque": "576625", "destinatario": "MICHEL DEBE", "cobrado": false}, {"fecha_cobro": "2026-12-07", "moneda": "$", "importe": 6500, "n_cheque": "762383", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-12-07", "moneda": "$", "importe": 8900, "n_cheque": "762376", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-12-08", "moneda": "$", "importe": 6500, "n_cheque": "699027", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-12-09", "moneda": "$", "importe": 18000, "n_cheque": "699030", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-12-09", "moneda": "$", "importe": 10800, "n_cheque": "699035", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-12-10", "moneda": "$", "importe": 9500, "n_cheque": "699042", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-12-11", "moneda": "$", "importe": 12000, "n_cheque": "699050", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-12-14", "moneda": "$", "importe": 11000, "n_cheque": "644026", "destinatario": "MICHEL DEBE", "cobrado": false}, {"fecha_cobro": "2026-12-14", "moneda": "$", "importe": 8900, "n_cheque": "762378", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-12-15", "moneda": "$", "importe": 18000, "n_cheque": "699036", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-12-17", "moneda": "$", "importe": 6500, "n_cheque": "762384", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-12-18", "moneda": "$", "importe": 18000, "n_cheque": "699038", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-12-21", "moneda": "$", "importe": 8900, "n_cheque": "644027", "destinatario": "MICHEL DEBE", "cobrado": false}, {"fecha_cobro": "2026-12-22", "moneda": "$", "importe": 8900, "n_cheque": "644032", "destinatario": "MICHEL DEBE", "cobrado": false}];
 
@@ -612,7 +697,6 @@ document.getElementById('historicoBtn').addEventListener('click', async ()=>{
   await loadCheques();
 });
 
-loadCheques();
 </script>
 </body>
 </html>
