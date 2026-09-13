@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Control de Cheques</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+:root{
+  --paper:#F7F5EF;
+  --paper-2:#EFEBE0;
+  --ink:#232220;
+  --ink-soft:#5B584F;
+  --line:#D9D4C4;
+  --pendiente:#A3432E;
+  --pendiente-bg:#F3E3DE;
+  --cobrado:#3F6B4A;
+  --cobrado-bg:#E4ECE3;
+  --usd:#2F4858;
+  --usd-bg:#E3E9EC;
+  --accent-ink:#141311;
+}
+*{box-sizing:border-box;}
+body{
+  margin:0;
+  background:var(--paper);
+  color:var(--ink);
+  font-family:'IBM Plex Sans', sans-serif;
+  font-size:14px;
+  line-height:1.45;
+}
+h1,h2,h3{
+  font-family:'Source Serif 4', serif;
+  font-weight:600;
+  margin:0;
+}
+.wrap{max-width:1180px;margin:0 auto;padding:24px 20px 80px;}
+
+/* HEADER */
+header.top{
+  display:flex;justify-content:space-between;align-items:baseline;
+  border-bottom:2px solid var(--accent-ink);
+  padding-bottom:14px;margin-bottom:18px;flex-wrap:wrap;gap:10px;
+}
+header.top h1{font-size:26px;letter-spacing:.2px;}
+header.top .sub{color:var(--ink-soft);font-size:13px;margin-top:4px;}
+
+/* MONTH NAV */
+.monthnav{
+  display:flex;align-items:center;gap:14px;
+  font-family:'Source Serif 4', serif;
+}
+.monthnav .mlabel{font-size:20px;min-width:210px;text-align:center;text-transform:capitalize;}
+.monthnav button{
+  background:none;border:1px solid var(--ink);color:var(--ink);
+  width:32px;height:32px;border-radius:0;cursor:pointer;font-size:16px;
+  font-family:'IBM Plex Mono', monospace;
+}
+.monthnav button:hover{background:var(--ink);color:var(--paper);}
+
+/* TOOLBAR */
+.toolbar{
+  display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;
+  background:var(--paper-2);border:1px solid var(--line);
+  padding:12px 14px;margin-bottom:18px;
+}
+.field{display:flex;flex-direction:column;gap:3px;}
+.field label{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--ink-soft);}
+.field select, .field input{
+  font-family:'IBM Plex Sans',sans-serif;
+  border:1px solid var(--line);background:var(--paper);
+  padding:6px 8px;font-size:13px;color:var(--ink);min-width:110px;
+}
+.field input[type="date"]{min-width:135px;}
+.spacer{flex:1;}
+.btn{
+  font-family:'IBM Plex Sans',sans-serif;font-size:13px;font-weight:500;
+  border:1px solid var(--ink);background:var(--ink);color:var(--paper);
+  padding:8px 14px;cursor:pointer;
+}
+.btn:hover{opacity:.85;}
+.btn.secondary{background:var(--paper);color:var(--ink);}
+.btn.secondary:hover{background:var(--paper-2);}
+
+/* CALENDAR */
+.calendar{
+  display:grid;grid-template-columns:repeat(7,1fr);
+  border-left:1px solid var(--line);border-top:1px solid var(--line);
+  margin-bottom:26px;
+}
+.dow{
+  background:var(--accent-ink);color:var(--paper);
+  padding:6px 8px;font-size:11px;text-transform:uppercase;letter-spacing:.8px;
+  border-right:1px solid var(--line);text-align:left;
+}
+.day{
+  min-height:96px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);
+  padding:5px 6px;position:relative;background:var(--paper);
+}
+.day.blank{background:var(--paper-2);}
+.day .num{
+  font-family:'Source Serif 4',serif;font-size:15px;color:var(--ink-soft);
+  display:flex;justify-content:space-between;align-items:center;
+}
+.day .num .add{
+  font-family:'IBM Plex Mono',monospace;cursor:pointer;color:var(--ink-soft);
+  border:1px solid var(--line);width:16px;height:16px;line-height:14px;text-align:center;font-size:12px;
+}
+.day .num .add:hover{background:var(--ink);color:var(--paper);border-color:var(--ink);}
+.chip{
+  font-size:11px;margin-top:4px;padding:2px 4px;cursor:pointer;
+  border-left:3px solid var(--pendiente);background:var(--pendiente-bg);color:var(--ink);
+  display:flex;justify-content:space-between;gap:4px;
+}
+.chip.cobrado{border-left-color:var(--cobrado);background:var(--cobrado-bg);}
+.chip.usd{border-left-color:var(--usd);background:var(--usd-bg);}
+.chip .imp{font-family:'IBM Plex Mono',monospace;white-space:nowrap;}
+.chip .dest{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+
+/* SUMMARY */
+.summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);margin-bottom:22px;}
+.sumcard{background:var(--paper);padding:14px;}
+.sumcard .label{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--ink-soft);}
+.sumcard .val{font-family:'IBM Plex Mono',monospace;font-size:22px;margin-top:4px;}
+.sumcard.pend .val{color:var(--pendiente);}
+.sumcard.cob .val{color:var(--cobrado);}
+
+table.dest{width:100%;border-collapse:collapse;margin-bottom:26px;}
+table.dest th, table.dest td{
+  border-bottom:1px solid var(--line);padding:7px 8px;text-align:left;font-size:13px;
+}
+table.dest th{
+  font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-soft);
+  border-bottom:2px solid var(--ink);font-weight:500;
+}
+table.dest td.num{font-family:'IBM Plex Mono',monospace;text-align:right;}
+
+/* LISTADO */
+.section-title{
+  font-size:15px;margin:26px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--line);
+  display:flex;justify-content:space-between;align-items:center;
+}
+table.listado{width:100%;border-collapse:collapse;font-size:13px;}
+table.listado th{
+  text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-soft);
+  border-bottom:2px solid var(--ink);padding:6px 8px;font-weight:500;
+}
+table.listado td{border-bottom:1px solid var(--line);padding:6px 8px;}
+table.listado td.num{font-family:'IBM Plex Mono',monospace;}
+.estado-tag{font-size:11px;padding:1px 6px;border:1px solid;}
+.estado-tag.pend{color:var(--pendiente);border-color:var(--pendiente);}
+.estado-tag.cob{color:var(--cobrado);border-color:var(--cobrado);}
+.rowbtn{background:none;border:none;color:var(--ink-soft);cursor:pointer;font-size:12px;text-decoration:underline;padding:0;margin-right:8px;}
+
+/* MODAL */
+.modal-bg{
+  display:none;position:fixed;inset:0;background:rgba(20,19,17,.5);
+  align-items:center;justify-content:center;z-index:50;
+}
+.modal-bg.open{display:flex;}
+.modal{
+  background:var(--paper);border:1px solid var(--ink);padding:22px;width:340px;max-width:92vw;
+}
+.modal h3{font-size:17px;margin-bottom:14px;}
+.modal .field{margin-bottom:10px;width:100%;}
+.modal .field select,.modal .field input{width:100%;}
+.modal .actions{display:flex;justify-content:space-between;margin-top:16px;align-items:center;}
+
+.note{font-size:12px;color:var(--ink-soft);margin:6px 0 18px;}
+#historicoBtn{margin-left:auto;}
+
+footer.hist{margin-top:30px;padding-top:14px;border-top:1px dashed var(--line);font-size:12px;color:var(--ink-soft);}
+
+@media print{
+  .toolbar,.no-print,footer.hist{display:none !important;}
+  body{background:#fff;}
+  .day{min-height:70px;}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div>
+      <h1>Control de Cheques</h1>
+      <div class="sub">PelSAS — vigente desde setiembre 2026</div>
+    </div>
+    <div class="monthnav no-print">
+      <button id="prevMonth">‹</button>
+      <div class="mlabel" id="monthLabel">—</div>
+      <button id="nextMonth">›</button>
+    </div>
+  </header>
+
+  <div class="toolbar no-print">
+    <div class="field">
+      <label>Destinatario</label>
+      <select id="fDestinatario"><option value="">Todos</option></select>
+    </div>
+    <div class="field">
+      <label>Estado</label>
+      <select id="fEstado">
+        <option value="">Todos</option>
+        <option value="pendiente">Pendiente</option>
+        <option value="cobrado">Cobrado</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Moneda</label>
+      <select id="fMoneda">
+        <option value="">Todas</option>
+        <option value="$">$</option>
+        <option value="USD">USD</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Desde</label>
+      <input type="date" id="fDesde">
+    </div>
+    <div class="field">
+      <label>Hasta</label>
+      <input type="date" id="fHasta">
+    </div>
+    <div class="spacer"></div>
+    <button class="btn secondary" id="btnExport">Exportar Excel</button>
+    <button class="btn secondary" id="btnPrint">Imprimir</button>
+    <button class="btn" id="btnNuevo">+ Nuevo cheque</button>
+  </div>
+
+  <div class="calendar" id="calendar"></div>
+
+  <div class="summary-grid" id="summaryGrid"></div>
+
+  <div class="section-title">Por destinatario</div>
+  <table class="dest">
+    <thead><tr><th>Destinatario</th><th>Pendiente $</th><th>Cobrado $</th><th>Pendiente USD</th><th>Cobrado USD</th></tr></thead>
+    <tbody id="destBody"></tbody>
+  </table>
+
+  <div class="section-title">Listado (según filtros, todas las fechas)</div>
+  <table class="listado">
+    <thead><tr><th>Fecha</th><th>Moneda</th><th>Importe</th><th>N° Cheque</th><th>Destinatario</th><th>Estado</th><th></th></tr></thead>
+    <tbody id="listadoBody"></tbody>
+  </table>
+
+  <footer class="hist no-print">
+    <span id="histInfo"></span>
+    <button class="btn secondary" id="historicoBtn" style="margin-top:8px;">Cargar histórico setiembre–diciembre 2026 (141 cheques)</button>
+  </footer>
+</div>
+
+<!-- MODAL -->
+<div class="modal-bg" id="modalBg">
+  <div class="modal">
+    <h3 id="modalTitle">Nuevo cheque</h3>
+    <input type="hidden" id="editId">
+    <div class="field">
+      <label>Fecha de cobro</label>
+      <input type="date" id="mFecha">
+    </div>
+    <div class="field">
+      <label>Moneda</label>
+      <select id="mMoneda"><option value="$">$</option><option value="USD">USD</option></select>
+    </div>
+    <div class="field">
+      <label>Importe</label>
+      <input type="number" step="0.01" id="mImporte">
+    </div>
+    <div class="field">
+      <label>N° de cheque</label>
+      <input type="text" id="mNCheque">
+    </div>
+    <div class="field">
+      <label>Destinatario</label>
+      <input type="text" id="mDestinatario" list="destList">
+      <datalist id="destList"></datalist>
+    </div>
+    <div class="field" style="flex-direction:row;align-items:center;gap:8px;">
+      <input type="checkbox" id="mCobrado" style="min-width:auto;">
+      <label style="text-transform:none;font-size:13px;">Cobrado</label>
+    </div>
+    <div class="actions">
+      <button class="rowbtn" id="mDelete" style="display:none;">Eliminar</button>
+      <div style="flex:1;"></div>
+      <button class="btn secondary" id="mCancel">Cancelar</button>
+      <button class="btn" id="mSave" style="margin-left:8px;">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL = "https://xxlgsipmocwizhafinwr.supabase.co";
+const SUPABASE_KEY = "sb_publishable_tdrE1iMSnvMIMUGLnHz4wg_6r070C_H";
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const MESES = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
+const DOW = ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"];
+
+let cheques = [];        // todos los cheques desde supabase
+let current = new Date(2026, 8, 1); // setiembre 2026 (mes index 8)
+
+function fmtMoney(n){
+  return Number(n||0).toLocaleString('es-UY', {minimumFractionDigits:0, maximumFractionDigits:2});
+}
+function isoLocal(d){
+  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+}
+
+async function loadCheques(){
+  const {data, error} = await sb.from('cheques').select('*').order('fecha_cobro', {ascending:true});
+  if(error){ console.error(error); alert("Error cargando cheques: "+error.message); return; }
+  cheques = data || [];
+  populateDestinatarioFilter();
+  renderAll();
+}
+
+function populateDestinatarioFilter(){
+  const set = new Set(cheques.map(c=>c.destinatario).filter(Boolean));
+  const sel = document.getElementById('fDestinatario');
+  const current = sel.value;
+  sel.innerHTML = '<option value="">Todos</option>' + [...set].sort().map(d=>`<option>${d}</option>`).join('');
+  sel.value = current;
+  document.getElementById('destList').innerHTML = [...set].sort().map(d=>`<option value="${d}">`).join('');
+}
+
+function getFilters(){
+  return {
+    destinatario: document.getElementById('fDestinatario').value,
+    estado: document.getElementById('fEstado').value,
+    moneda: document.getElementById('fMoneda').value,
+    desde: document.getElementById('fDesde').value,
+    hasta: document.getElementById('fHasta').value,
+  };
+}
+
+function applyFilters(list, f){
+  return list.filter(c=>{
+    if(f.destinatario && c.destinatario !== f.destinatario) return false;
+    if(f.estado === 'pendiente' && c.cobrado) return false;
+    if(f.estado === 'cobrado' && !c.cobrado) return false;
+    if(f.moneda && c.moneda !== f.moneda) return false;
+    if(f.desde && c.fecha_cobro < f.desde) return false;
+    if(f.hasta && c.fecha_cobro > f.hasta) return false;
+    return true;
+  });
+}
+
+function renderAll(){
+  renderMonthLabel();
+  renderCalendar();
+  renderSummaryAndListado();
+}
+
+function renderMonthLabel(){
+  document.getElementById('monthLabel').textContent = MESES[current.getMonth()] + " " + current.getFullYear();
+}
+
+function renderCalendar(){
+  const f = getFilters();
+  const y = current.getFullYear(), m = current.getMonth();
+  const firstDay = new Date(y, m, 1);
+  const lastDay = new Date(y, m+1, 0);
+  // Lunes = 0 ... Domingo = 6
+  const startOffset = (firstDay.getDay() + 6) % 7;
+  const totalDays = lastDay.getDate();
+
+  const cal = document.getElementById('calendar');
+  cal.innerHTML = DOW.map(d=>`<div class="dow">${d}</div>`).join('');
+
+  for(let i=0;i<startOffset;i++){
+    cal.innerHTML += `<div class="day blank"></div>`;
+  }
+
+  const monthCheques = applyFilters(cheques.filter(c=>{
+    const d = c.fecha_cobro;
+    return d >= isoLocal(firstDay) && d <= isoLocal(lastDay);
+  }), f);
+
+  for(let day=1; day<=totalDays; day++){
+    const dateObj = new Date(y,m,day);
+    const iso = isoLocal(dateObj);
+    const dayCheques = monthCheques.filter(c=>c.fecha_cobro === iso);
+    let chipsHtml = dayCheques.map(c=>{
+      const cls = c.cobrado ? 'cobrado' : (c.moneda==='USD' ? 'usd' : '');
+      return `<div class="chip ${cls}" data-id="${c.id}">
+        <span class="dest">${c.destinatario||''}</span>
+        <span class="imp">${c.moneda} ${fmtMoney(c.importe)}</span>
+      </div>`;
+    }).join('');
+    cal.innerHTML += `<div class="day" data-date="${iso}">
+      <div class="num"><span>${day}</span><span class="add no-print" data-date="${iso}">+</span></div>
+      ${chipsHtml}
+    </div>`;
+  }
+
+  cal.querySelectorAll('.chip').forEach(el=>{
+    el.addEventListener('click', ()=>openEdit(el.dataset.id));
+  });
+  cal.querySelectorAll('.add').forEach(el=>{
+    el.addEventListener('click', ()=>openNew(el.dataset.date));
+  });
+}
+
+function renderSummaryAndListado(){
+  const f = getFilters();
+  const filtered = applyFilters(cheques, f);
+
+  let pend$=0, cob$=0, pendU=0, cobU=0;
+  filtered.forEach(c=>{
+    if(c.moneda==='USD'){ if(c.cobrado) cobU+=Number(c.importe||0); else pendU+=Number(c.importe||0); }
+    else { if(c.cobrado) cob$+=Number(c.importe||0); else pend$+=Number(c.importe||0); }
+  });
+
+  document.getElementById('summaryGrid').innerHTML = `
+    <div class="sumcard pend"><div class="label">Pendiente $</div><div class="val">${fmtMoney(pend$)}</div></div>
+    <div class="sumcard cob"><div class="label">Cobrado $</div><div class="val">${fmtMoney(cob$)}</div></div>
+    <div class="sumcard pend"><div class="label">Pendiente USD</div><div class="val">${fmtMoney(pendU)}</div></div>
+    <div class="sumcard cob"><div class="label">Cobrado USD</div><div class="val">${fmtMoney(cobU)}</div></div>
+  `;
+
+  const byDest = {};
+  filtered.forEach(c=>{
+    const k = c.destinatario || '(sin destinatario)';
+    if(!byDest[k]) byDest[k] = {p$:0,c$:0,pu:0,cu:0};
+    if(c.moneda==='USD'){ if(c.cobrado) byDest[k].cu+=Number(c.importe||0); else byDest[k].pu+=Number(c.importe||0); }
+    else { if(c.cobrado) byDest[k]['c$']+=Number(c.importe||0); else byDest[k]['p$']+=Number(c.importe||0); }
+  });
+  document.getElementById('destBody').innerHTML = Object.keys(byDest).sort().map(k=>{
+    const v = byDest[k];
+    return `<tr><td>${k}</td><td class="num">${fmtMoney(v['p$'])}</td><td class="num">${fmtMoney(v['c$'])}</td><td class="num">${fmtMoney(v.pu)}</td><td class="num">${fmtMoney(v.cu)}</td></tr>`;
+  }).join('') || '<tr><td colspan="5">Sin resultados</td></tr>';
+
+  const sorted = [...filtered].sort((a,b)=> a.fecha_cobro < b.fecha_cobro ? 1 : -1);
+  document.getElementById('listadoBody').innerHTML = sorted.map(c=>`
+    <tr>
+      <td>${c.fecha_cobro}</td>
+      <td>${c.moneda}</td>
+      <td class="num">${fmtMoney(c.importe)}</td>
+      <td>${c.n_cheque||''}</td>
+      <td>${c.destinatario||''}</td>
+      <td><span class="estado-tag ${c.cobrado?'cob':'pend'}">${c.cobrado?'Cobrado':'Pendiente'}</span></td>
+      <td class="no-print"><button class="rowbtn" data-id="${c.id}">Editar</button></td>
+    </tr>
+  `).join('') || '<tr><td colspan="7">Sin resultados</td></tr>';
+
+  document.getElementById('listadoBody').querySelectorAll('.rowbtn').forEach(b=>{
+    b.addEventListener('click', ()=>openEdit(b.dataset.id));
+  });
+
+  document.getElementById('histInfo').textContent = `${cheques.length} cheques cargados en total.`;
+}
+
+// MODAL logic
+const modalBg = document.getElementById('modalBg');
+function openNew(dateIso){
+  document.getElementById('modalTitle').textContent = 'Nuevo cheque';
+  document.getElementById('editId').value = '';
+  document.getElementById('mFecha').value = dateIso || isoLocal(new Date());
+  document.getElementById('mMoneda').value = '$';
+  document.getElementById('mImporte').value = '';
+  document.getElementById('mNCheque').value = '';
+  document.getElementById('mDestinatario').value = '';
+  document.getElementById('mCobrado').checked = false;
+  document.getElementById('mDelete').style.display = 'none';
+  modalBg.classList.add('open');
+}
+function openEdit(id){
+  const c = cheques.find(x=>String(x.id)===String(id));
+  if(!c) return;
+  document.getElementById('modalTitle').textContent = 'Editar cheque';
+  document.getElementById('editId').value = c.id;
+  document.getElementById('mFecha').value = c.fecha_cobro;
+  document.getElementById('mMoneda').value = c.moneda;
+  document.getElementById('mImporte').value = c.importe;
+  document.getElementById('mNCheque').value = c.n_cheque || '';
+  document.getElementById('mDestinatario').value = c.destinatario || '';
+  document.getElementById('mCobrado').checked = !!c.cobrado;
+  document.getElementById('mDelete').style.display = 'inline';
+  modalBg.classList.add('open');
+}
+document.getElementById('btnNuevo').addEventListener('click', ()=>openNew(null));
+document.getElementById('mCancel').addEventListener('click', ()=>modalBg.classList.remove('open'));
+modalBg.addEventListener('click', (e)=>{ if(e.target===modalBg) modalBg.classList.remove('open'); });
+
+document.getElementById('mSave').addEventListener('click', async ()=>{
+  const id = document.getElementById('editId').value;
+  const payload = {
+    fecha_cobro: document.getElementById('mFecha').value,
+    moneda: document.getElementById('mMoneda').value,
+    importe: parseFloat(document.getElementById('mImporte').value || 0),
+    n_cheque: document.getElementById('mNCheque').value || null,
+    destinatario: document.getElementById('mDestinatario').value || null,
+    cobrado: document.getElementById('mCobrado').checked,
+  };
+  if(!payload.fecha_cobro || !payload.importe){ alert('Falta fecha o importe'); return; }
+  let error;
+  if(id){
+    ({error} = await sb.from('cheques').update(payload).eq('id', id));
+  } else {
+    ({error} = await sb.from('cheques').insert(payload));
+  }
+  if(error){ alert('Error guardando: '+error.message); return; }
+  modalBg.classList.remove('open');
+  await loadCheques();
+});
+document.getElementById('mDelete').addEventListener('click', async ()=>{
+  const id = document.getElementById('editId').value;
+  if(!id) return;
+  if(!confirm('¿Eliminar este cheque?')) return;
+  const {error} = await sb.from('cheques').delete().eq('id', id);
+  if(error){ alert('Error eliminando: '+error.message); return; }
+  modalBg.classList.remove('open');
+  await loadCheques();
+});
+
+// NAV
+document.getElementById('prevMonth').addEventListener('click', ()=>{
+  current = new Date(current.getFullYear(), current.getMonth()-1, 1);
+  renderAll();
+});
+document.getElementById('nextMonth').addEventListener('click', ()=>{
+  current = new Date(current.getFullYear(), current.getMonth()+1, 1);
+  renderAll();
+});
+
+// FILTERS
+['fDestinatario','fEstado','fMoneda','fDesde','fHasta'].forEach(id=>{
+  document.getElementById(id).addEventListener('change', renderAll);
+});
+
+// EXPORT EXCEL (mes actual, formato calendario)
+document.getElementById('btnExport').addEventListener('click', ()=>{
+  const y = current.getFullYear(), m = current.getMonth();
+  const lastDay = new Date(y, m+1, 0).getDate();
+  const rows = [["Dia","Fecha","Moneda","Importe","Cobrado","N° Cheque","Destinatario"]];
+  for(let day=1; day<=lastDay; day++){
+    const dateObj = new Date(y,m,day);
+    const iso = isoLocal(dateObj);
+    const dayName = DOW[(dateObj.getDay()+6)%7];
+    const dayCheques = cheques.filter(c=>c.fecha_cobro===iso);
+    if(dayCheques.length===0){
+      rows.push([dayName, iso, "", "", "", "", ""]);
+    } else {
+      dayCheques.forEach(c=>{
+        rows.push([dayName, iso, c.moneda, c.importe, c.cobrado?"Si":"No", c.n_cheque||"", c.destinatario||""]);
+      });
+    }
+  }
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [{wch:6},{wch:11},{wch:7},{wch:11},{wch:8},{wch:12},{wch:20}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, MESES[m].slice(0,10));
+  XLSX.writeFile(wb, `cheques_${MESES[m]}_${y}.xlsx`);
+});
+
+document.getElementById('btnPrint').addEventListener('click', ()=>window.print());
+
+// IMPORTAR HISTORICO (una sola vez)
+const HISTORICO = [{"fecha_cobro": "2026-09-01", "moneda": "$", "importe": 5700, "n_cheque": "473654", "destinatario": "MICHEL YO", "cobrado": true}, {"fecha_cobro": "2026-09-02", "moneda": "$", "importe": 7500, "n_cheque": "402834", "destinatario": "MICHEL YO", "cobrado": true}, {"fecha_cobro": "2026-09-02", "moneda": "$", "importe": 2650, "n_cheque": "644034", "destinatario": "AMU 2", "cobrado": true}, {"fecha_cobro": "2026-09-03", "moneda": "$", "importe": 12500, "n_cheque": "107799", "destinatario": "AMU 2", "cobrado": true}, {"fecha_cobro": "2026-09-03", "moneda": "$", "importe": 5653, "n_cheque": "699046", "destinatario": "BLODWEN", "cobrado": true}, {"fecha_cobro": "2026-09-03", "moneda": "$", "importe": 8900, "n_cheque": "473666", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-09-04", "moneda": "$", "importe": 6876, "n_cheque": "402835", "destinatario": "MICHEL YO", "cobrado": true}, {"fecha_cobro": "2026-09-04", "moneda": "$", "importe": 7700, "n_cheque": "402850", "destinatario": "MICHEL DEBE", "cobrado": true}, {"fecha_cobro": "2026-09-07", "moneda": "$", "importe": 2667, "n_cheque": "644042", "destinatario": "AMU 2", "cobrado": true}, {"fecha_cobro": "2026-09-07", "moneda": "$", "importe": 4800, "n_cheque": "107800", "destinatario": "MICHEL DEBE", "cobrado": true}, {"fecha_cobro": "2026-09-08", "moneda": "$", "importe": 5760, "n_cheque": "473655", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-09-08", "moneda": "$", "importe": 7490, "n_cheque": "644043", "destinatario": "MICHEL YO", "cobrado": true}, {"fecha_cobro": "2026-09-09", "moneda": "$", "importe": 13500, "n_cheque": "226769", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-09-09", "moneda": "$", "importe": 8970, "n_cheque": "473667", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-09-10", "moneda": "$", "importe": 13000, "n_cheque": "473657", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-09-10", "moneda": "$", "importe": 14900, "n_cheque": "762380", "destinatario": "BLODWEN", "cobrado": false}, {"fecha_cobro": "2026-09-10", "moneda": "$", "importe": 7900, "n_cheque": "473658", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-09-11", "moneda": "$", "importe": 10900, "n_cheque": "226775", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-09-14", "moneda": "$", "importe": 8760, "n_cheque": "473868", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-09-14", "moneda": "$", "importe": 3638, "n_cheque": "762381", "destinatario": "BLODWEN", "cobrado": false}, {"fecha_cobro": "2026-09-15", "moneda": "$", "importe": 10900, "n_cheque": "324884", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-09-15", "moneda": "$", "importe": 9700, "n_cheque": "473653", "destinatario": "MICHEL DEBE", "cobrado": false}, {"fecha_cobro": "2026-09-16", "moneda": "$", "importe": 5760, "n_cheque": "473656", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-09-17", "moneda": "$", "importe": 5850, "n_cheque": "473659", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-09-17", "moneda": "$", "importe": 2620, "n_cheque": "699031", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-09-18", "moneda": "$", "importe": 15500, "n_cheque": "324888", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-09-18", "moneda": "$", "importe": 9450, "n_cheque": "524368", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-09-21", "moneda": "$", "importe": 15500, "n_cheque": "324899", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-09-21", "moneda": "$", "importe": 7900, "n_cheque": "473664", "destinatario": "MICHEL DEBE", "cobrado": false}, {"fecha_cobro": "2026-09-22", "moneda": "$", "importe": 11500, "n_cheque": "324890", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-09-22", "moneda": "$", "importe": 7900, "n_cheque": "473660", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-09-23", "moneda": "$", "importe": 7750, "n_cheque": "473669", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-09-24", "moneda": "$", "importe": 8950, "n_cheque": "524371", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-09-25", "moneda": "$", "importe": 11500, "n_cheque": "324891", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-09-25", "moneda": "$", "importe": 8500, "n_cheque": "473663", "destinatario": "MICHEL DEBE", "cobrado": false}, {"fecha_cobro": "2026-09-28", "moneda": "$", "importe": 7900, "n_cheque": "473661", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-09-29", "moneda": "$", "importe": 7080, "n_cheque": "402836", "destinatario": "BOLSAS", "cobrado": false}, {"fecha_cobro": "2026-09-29", "moneda": "$", "importe": 7490, "n_cheque": "644044", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-09-30", "moneda": "$", "importe": 13900, "n_cheque": "402846", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-09-30", "moneda": "$", "importe": 7965, "n_cheque": "473665", "destinatario": "MICHEL DEBE", "cobrado": false}, {"fecha_cobro": "2026-10-01", "moneda": "$", "importe": 2660, "n_cheque": "699037", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-10-02", "moneda": "$", "importe": 8760, "n_cheque": "524358", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-10-02", "moneda": "$", "importe": 5260, "n_cheque": "762379", "destinatario": "ANTONIO", "cobrado": false}, {"fecha_cobro": "2026-10-05", "moneda": "$", "importe": 15500, "n_cheque": "324899", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-10-06", "moneda": "$", "importe": 12500, "n_cheque": "402847", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-10-07", "moneda": "$", "importe": 6200, "n_cheque": "473670", "destinatario": "MICHEL DEBE", "cobrado": false}, {"fecha_cobro": "2026-10-07", "moneda": "$", "importe": 2740, "n_cheque": "699039", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-10-08", "moneda": "$", "importe": 16900, "n_cheque": "402841", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-10-08", "moneda": "$", "importe": 8900, "n_cheque": "576616", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-10-09", "moneda": "$", "importe": 7760, "n_cheque": "524359", "destinatario": "MICHEL DEBE", "cobrado": false}, {"fecha_cobro": "2026-10-09", "moneda": "$", "importe": 9800, "n_cheque": "524364", "destinatario": "MICHEL DEBE", "cobrado": false}, {"fecha_cobro": "2026-10-13", "moneda": "$", "importe": 16500, "n_cheque": "324900", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-10-13", "moneda": "$", "importe": 5500, "n_cheque": "762377", "destinatario": "MICHEL DEBE", "cobrado": false}, {"fecha_cobro": "2026-10-13", "moneda": "$", "importe": 12800, "n_cheque": "699043", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-10-13", "moneda": "$", "importe": 7230, "n_cheque": "402837", "destinatario": "BOLSAS", "cobrado": false}, {"fecha_cobro": "2026-10-14", "moneda": "$", "importe": 6550, "n_cheque": "473671", "destinatario": "MICHEL DEBE", "cobrado": false}, {"fecha_cobro": "2026-10-14", "moneda": "$", "importe": 9800, "n_cheque": "524365", "destinatario": "MICHEL DEBE", "cobrado": false}, {"fecha_cobro": "2026-10-15", "moneda": "$", "importe": 14500, "n_cheque": "524369", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-10-15", "moneda": "$", "importe": 10800, "n_cheque": "699032", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-10-16", "moneda": "$", "importe": 12500, "n_cheque": "402842", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-10-16", "moneda": "$", "importe": 7550, "n_cheque": "524360", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-10-19", "moneda": "$", "importe": 12500, "n_cheque": "823275", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-10-19", "moneda": "$", "importe": 6500, "n_cheque": "644036", "destinatario": "MICHEL DEBE", "cobrado": false}, {"fecha_cobro": "2026-10-19", "moneda": "$", "importe": 10900, "n_cheque": "576608", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-10-20", "moneda": "$", "importe": 14900, "n_cheque": "473251", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-10-20", "moneda": "$", "importe": 11950, "n_cheque": "524375", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-10-21", "moneda": "$", "importe": 7300, "n_cheque": "524353", "destinatario": "MICHEL DEBE", "cobrado": false}, {"fecha_cobro": "2026-10-21", "moneda": "$", "importe": 9800, "n_cheque": "524366", "destinatario": "MICHEL DEBE", "cobrado": false}, {"fecha_cobro": "2026-10-22", "moneda": "$", "importe": 14500, "n_cheque": "473672", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-10-22", "moneda": "$", "importe": 11800, "n_cheque": "576609", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-10-23", "moneda": "$", "importe": 9500, "n_cheque": "576617", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-10-26", "moneda": "$", "importe": 13500, "n_cheque": "473252", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-10-26", "moneda": "$", "importe": 12800, "n_cheque": "699044", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-10-26", "moneda": "$", "importe": 7550, "n_cheque": "524361", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-10-27", "moneda": "$", "importe": 5900, "n_cheque": "644028", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-10-28", "moneda": "$", "importe": 6700, "n_cheque": "524354", "destinatario": "MICHEL DEBE", "cobrado": false}, {"fecha_cobro": "2026-10-28", "moneda": "$", "importe": 9800, "n_cheque": "524367", "destinatario": "MICHEL DEBE", "cobrado": false}, {"fecha_cobro": "2026-10-29", "moneda": "$", "importe": 13000, "n_cheque": "473674", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-10-29", "moneda": "$", "importe": 11890, "n_cheque": "576610", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-10-30", "moneda": "$", "importe": 7380, "n_cheque": "402838", "destinatario": "BOLSAS", "cobrado": false}, {"fecha_cobro": "2026-10-30", "moneda": "$", "importe": 6900, "n_cheque": "762382", "destinatario": "MICHEL DEBE", "cobrado": false}, {"fecha_cobro": "2026-10-30", "moneda": "$", "importe": 9500, "n_cheque": "576618", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-10-30", "moneda": "$", "importe": 8900, "n_cheque": "699028", "destinatario": "MICHEL DEBE", "cobrado": false}, {"fecha_cobro": "2026-11-02", "moneda": "$", "importe": 6500, "n_cheque": "644046", "destinatario": "MICHEL DEBE", "cobrado": false}, {"fecha_cobro": "2026-11-02", "moneda": "$", "importe": 12896, "n_cheque": "699045", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-11-03", "moneda": "$", "importe": 14500, "n_cheque": "524355", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-11-03", "moneda": "$", "importe": 8490, "n_cheque": "644037", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-11-04", "moneda": "$", "importe": 6500, "n_cheque": "644035", "destinatario": "MICHEL DEBE", "cobrado": false}, {"fecha_cobro": "2026-11-05", "moneda": "$", "importe": 12400, "n_cheque": "576607", "destinatario": "MICHEL DEBE", "cobrado": false}, {"fecha_cobro": "2026-11-05", "moneda": "$", "importe": 8650, "n_cheque": "576622", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-11-06", "moneda": "$", "importe": 14500, "n_cheque": "524372", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-11-06", "moneda": "$", "importe": 6950, "n_cheque": "644030", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-11-09", "moneda": "$", "importe": 13500, "n_cheque": "524356", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-11-10", "moneda": "$", "importe": 11890, "n_cheque": "576611", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-11-10", "moneda": "$", "importe": 8900, "n_cheque": "699029", "destinatario": "MICHEL DEBE", "cobrado": false}, {"fecha_cobro": "2026-11-11", "moneda": "$", "importe": 8650, "n_cheque": "576623", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-11-11", "moneda": "$", "importe": 5900, "n_cheque": "644029", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-11-12", "moneda": "$", "importe": 14500, "n_cheque": "524362", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-11-12", "moneda": "$", "importe": 12500, "n_cheque": "576612", "destinatario": "MICHEL DEBE", "cobrado": false}, {"fecha_cobro": "2026-11-13", "moneda": "$", "importe": 14000, "n_cheque": "524373", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-11-13", "moneda": "$", "importe": 6500, "n_cheque": "644047", "destinatario": "MICHEL DEBE", "cobrado": false}, {"fecha_cobro": "2026-11-16", "moneda": "$", "importe": 6950, "n_cheque": "644031", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-11-16", "moneda": "$", "importe": 9350, "n_cheque": "644050", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-11-17", "moneda": "$", "importe": 17000, "n_cheque": "576619", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-11-17", "moneda": "$", "importe": 8490, "n_cheque": "644038", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-11-18", "moneda": "$", "importe": 7490, "n_cheque": "644045", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-11-19", "moneda": "$", "importe": 14500, "n_cheque": "576604", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-11-19", "moneda": "$", "importe": 10900, "n_cheque": "644048", "destinatario": "MICHEL DEBE", "cobrado": false}, {"fecha_cobro": "2026-11-20", "moneda": "$", "importe": 9500, "n_cheque": "576614", "destinatario": "MICHEL DEBE", "cobrado": false}, {"fecha_cobro": "2026-11-20", "moneda": "$", "importe": 9300, "n_cheque": "699047", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-11-23", "moneda": "$", "importe": 14000, "n_cheque": "576605", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-11-23", "moneda": "$", "importe": 9500, "n_cheque": "699040", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-11-24", "moneda": "$", "importe": 11500, "n_cheque": "576621", "destinatario": "MICHEL DEBE", "cobrado": false}, {"fecha_cobro": "2026-11-25", "moneda": "$", "importe": 9270, "n_cheque": "576624", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-11-25", "moneda": "$", "importe": 10800, "n_cheque": "699033", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-11-26", "moneda": "$", "importe": 18000, "n_cheque": "644033", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-11-26", "moneda": "$", "importe": 9300, "n_cheque": "699048", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-11-27", "moneda": "$", "importe": 8490, "n_cheque": "644039", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-11-30", "moneda": "$", "importe": 9500, "n_cheque": "576615", "destinatario": "MICHEL DEBE", "cobrado": false}, {"fecha_cobro": "2026-11-30", "moneda": "$", "importe": 8490, "n_cheque": "644040", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-12-01", "moneda": "$", "importe": 5900, "n_cheque": "699026", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-12-02", "moneda": "$", "importe": 10800, "n_cheque": "699034", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-12-03", "moneda": "$", "importe": 18000, "n_cheque": "644041", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-12-03", "moneda": "$", "importe": 9290, "n_cheque": "699049", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-12-04", "moneda": "$", "importe": 8900, "n_cheque": "644049", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-12-04", "moneda": "$", "importe": 9500, "n_cheque": "699041", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-12-07", "moneda": "$", "importe": 9200, "n_cheque": "576625", "destinatario": "MICHEL DEBE", "cobrado": false}, {"fecha_cobro": "2026-12-07", "moneda": "$", "importe": 6500, "n_cheque": "762383", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-12-07", "moneda": "$", "importe": 8900, "n_cheque": "762376", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-12-08", "moneda": "$", "importe": 6500, "n_cheque": "699027", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-12-09", "moneda": "$", "importe": 18000, "n_cheque": "699030", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-12-09", "moneda": "$", "importe": 10800, "n_cheque": "699035", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-12-10", "moneda": "$", "importe": 9500, "n_cheque": "699042", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-12-11", "moneda": "$", "importe": 12000, "n_cheque": "699050", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-12-14", "moneda": "$", "importe": 11000, "n_cheque": "644026", "destinatario": "MICHEL DEBE", "cobrado": false}, {"fecha_cobro": "2026-12-14", "moneda": "$", "importe": 8900, "n_cheque": "762378", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-12-15", "moneda": "$", "importe": 18000, "n_cheque": "699036", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-12-17", "moneda": "$", "importe": 6500, "n_cheque": "762384", "destinatario": "MICHEL YO", "cobrado": false}, {"fecha_cobro": "2026-12-18", "moneda": "$", "importe": 18000, "n_cheque": "699038", "destinatario": "AMU 2", "cobrado": false}, {"fecha_cobro": "2026-12-21", "moneda": "$", "importe": 8900, "n_cheque": "644027", "destinatario": "MICHEL DEBE", "cobrado": false}, {"fecha_cobro": "2026-12-22", "moneda": "$", "importe": 8900, "n_cheque": "644032", "destinatario": "MICHEL DEBE", "cobrado": false}];
+
+document.getElementById('historicoBtn').addEventListener('click', async ()=>{
+  if(localStorage.getItem('cheques_historico_importado')){
+    if(!confirm('Ya se importó antes el histórico en este navegador. ¿Importar de nuevo de todas formas? (puede duplicar cheques)')) return;
+  }
+  if(cheques.length > 0){
+    if(!confirm(`Ya hay ${cheques.length} cheques cargados en la base. ¿Importar igual los 141 históricos de setiembre-diciembre 2026?`)) return;
+  }
+  const btn = document.getElementById('historicoBtn');
+  btn.disabled = true;
+  btn.textContent = 'Importando...';
+  const {error} = await sb.from('cheques').insert(HISTORICO);
+  if(error){
+    alert('Error importando histórico: '+error.message);
+    btn.disabled = false;
+    btn.textContent = 'Cargar histórico setiembre–diciembre 2026 (141 cheques)';
+    return;
+  }
+  localStorage.setItem('cheques_historico_importado', '1');
+  btn.textContent = 'Histórico importado ✓';
+  await loadCheques();
+});
+
+loadCheques();
+</script>
+</body>
+</html>
