@@ -409,7 +409,7 @@ function populateDestinatarioFilter(){
   const set = new Set(cheques.map(c=>c.destinatario).filter(Boolean));
   const sel = document.getElementById('fDestinatario');
   const prevSelected = Array.from(sel.selectedOptions).map(o=>o.value);
-  sel.innerHTML = [...set].sort().map(d=>`<option value="${d}">${d}</option>`).join('');
+  sel.innerHTML = '<option value="">TODOS</option>' + [...set].sort().map(d=>`<option value="${d}">${d}</option>`).join('');
   Array.from(sel.options).forEach(o=>{ if(prevSelected.includes(o.value)) o.selected = true; });
   document.getElementById('destList').innerHTML = [...set].sort().map(d=>`<option value="${d}">`).join('');
 }
@@ -417,7 +417,7 @@ function populateDestinatarioFilter(){
 function getFilters(){
   const destSel = document.getElementById('fDestinatario');
   return {
-    destinatario: Array.from(destSel.selectedOptions).map(o=>o.value), // array vacío = todos
+    destinatario: Array.from(destSel.selectedOptions).map(o=>o.value).filter(v=>v!==''), // vacío (TODOS) = sin filtro
     estado: document.getElementById('fEstado').value,
     moneda: document.getElementById('fMoneda').value,
     desde: document.getElementById('fDesde').value,
