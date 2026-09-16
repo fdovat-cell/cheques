@@ -85,24 +85,24 @@ header.top .sub{color:var(--ink-soft);font-size:13px;margin-top:4px;}
 .btn.secondary{background:var(--paper);color:var(--ink);}
 .btn.secondary:hover{background:var(--paper-2);}
 
-/* CALENDAR (tabla real: pagina bien al imprimir) */
-table.calendar{
-  width:100%;
-  border-collapse:collapse;
-  table-layout:fixed;
+/* CALENDAR */
+.calendar{
+  width:100%;table-layout:fixed;border-collapse:collapse;
   border-left:1px solid var(--line);border-top:1px solid var(--line);
   margin-bottom:26px;
 }
-table.calendar th.dow{
+.dow{
   background:var(--accent-ink);color:var(--paper);
   padding:6px 8px;font-size:11px;text-transform:uppercase;letter-spacing:.8px;
   border-right:1px solid var(--line);text-align:left;font-weight:500;
 }
-table.calendar td.day{
-  height:96px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);
-  padding:5px 6px;position:relative;background:var(--paper);vertical-align:top;
+.day{
+  min-height:96px;height:96px;vertical-align:top;
+  border-right:1px solid var(--line);border-bottom:1px solid var(--line);
+  padding:5px 6px;position:relative;background:var(--paper);
 }
-table.calendar td.day.blank{background:var(--paper-2);}
+.day.blank{background:var(--paper-2);}
+.calendar tr{break-inside:avoid;page-break-inside:avoid;}
 .day .num{
   font-family:'Source Serif 4',serif;font-size:15px;color:var(--ink-soft);
   display:flex;justify-content:space-between;align-items:center;
@@ -179,69 +179,29 @@ footer.hist{margin-top:30px;padding-top:14px;border-top:1px dashed var(--line);f
 @media print{
   .toolbar,.no-print,footer.hist{display:none !important;}
   body{background:#fff;}
-  table.calendar{page-break-inside:auto;}
-  table.calendar thead{display:table-header-group;}
-  table.calendar tr.calendar-week{break-inside:avoid;page-break-inside:avoid;}
-  table.calendar td.day{height:auto;min-height:70px;}
-  .chip{font-size:9.5px;padding:1px 3px;flex-direction:column;align-items:flex-start;gap:0;}
-  .chip .dest{
-    white-space:normal;overflow:visible;text-overflow:clip;
-    word-break:break-word;line-height:1.15;
-  }
-  .chip .imp{font-size:9px;white-space:nowrap;}
-  .day .num{font-size:11px;}
+  .day{min-height:70px;}
 }
-
-/* PANTALLA DE ACCESO (filtro simple, no es seguridad real) */
-#gateBg{
-  position:fixed;inset:0;background:var(--paper);
-  display:flex;align-items:center;justify-content:center;z-index:100;
-}
-#gateBg.hidden{display:none;}
-.gate-box{
-  background:var(--paper-2);border:1px solid var(--ink);padding:28px 26px;width:280px;max-width:90vw;text-align:center;
-}
-.gate-box h2{font-size:18px;margin-bottom:14px;}
-.gate-box input{
-  width:100%;border:1px solid var(--line);background:var(--paper);
-  padding:8px;font-size:14px;margin-bottom:10px;font-family:'IBM Plex Sans',sans-serif;text-align:center;
-}
-.gate-box .gate-error{color:var(--pendiente);font-size:12px;min-height:16px;margin-bottom:6px;}
-body.gate-active .wrap{display:none;}
 </style>
 </head>
-<body class="gate-active">
-
-<div id="gateBg">
-  <div class="gate-box">
-    <h2>Control de Cheques</h2>
-    <input type="email" id="gateEmail" placeholder="Email" autocomplete="username">
-    <input type="password" id="gateInput" placeholder="Contraseña" autocomplete="current-password">
-    <div class="gate-error" id="gateError"></div>
-    <button class="btn" id="gateBtn" style="width:100%;">Entrar</button>
-  </div>
-</div>
-
+<body>
 <div class="wrap">
 
   <header class="top">
     <div>
       <h1>Control de Cheques</h1>
-      <div class="sub">PelSAS</div>
+      <div class="sub">PelSAS — vigente desde setiembre 2026</div>
     </div>
     <div class="monthnav no-print">
       <button id="prevMonth">‹</button>
       <div class="mlabel" id="monthLabel">—</div>
       <button id="nextMonth">›</button>
-      <button class="btn secondary" id="btnLogout" style="margin-left:10px;font-size:12px;padding:6px 10px;">Salir</button>
     </div>
   </header>
 
   <div class="toolbar no-print">
     <div class="field">
-      <label>Destinatario(s)</label>
-      <select id="fDestinatario" multiple size="4" style="min-width:150px;"></select>
-      <span style="font-size:10px;color:var(--ink-soft);margin-top:2px;">Ctrl/Cmd+clic para elegir varios</span>
+      <label>Destinatario</label>
+      <select id="fDestinatario"><option value="">Todos</option></select>
     </div>
     <div class="field">
       <label>Estado</label>
@@ -267,19 +227,19 @@ body.gate-active .wrap{display:none;}
       <label>Hasta</label>
       <input type="date" id="fHasta">
     </div>
+    <div class="field" style="min-width:100px;">
+      <label>N° cheque</label>
+      <input type="text" id="fBuscarNCheque" list="nchequeList" placeholder="buscar…" style="min-width:90px;">
+      <datalist id="nchequeList"></datalist>
+    </div>
     <div class="spacer"></div>
-    <button class="btn secondary" id="btnExport">Exportar Excel (mes)</button>
+    <button class="btn secondary" id="btnExport">Exportar Excel</button>
     <button class="btn secondary" id="btnBackup">Backup completo</button>
     <button class="btn secondary" id="btnPrint">Imprimir</button>
     <button class="btn" id="btnNuevo">+ Nuevo cheque</button>
   </div>
 
-  <table class="calendar" id="calendar">
-    <thead>
-      <tr id="calendarDow"></tr>
-    </thead>
-    <tbody id="calendarBody"></tbody>
-  </table>
+  <table class="calendar" id="calendar"></table>
 
   <div class="summary-grid" id="summaryGrid"></div>
 
@@ -348,45 +308,6 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const MESES = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
 const DOW = ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"];
 
-// ==== ACCESO (login real con Supabase Auth) ====
-function showApp(){
-  document.getElementById('gateBg').classList.add('hidden');
-  document.body.classList.remove('gate-active');
-  loadCheques();
-}
-function showGate(){
-  document.getElementById('gateBg').classList.remove('hidden');
-  document.body.classList.add('gate-active');
-}
-
-async function tryLogin(){
-  const email = document.getElementById('gateEmail').value.trim();
-  const password = document.getElementById('gateInput').value;
-  const gateError = document.getElementById('gateError');
-  gateError.textContent = '';
-  if(!email || !password){ gateError.textContent = 'Completá email y contraseña'; return; }
-  const { error } = await sb.auth.signInWithPassword({ email, password });
-  if(error){
-    gateError.textContent = 'Email o contraseña incorrectos';
-    return;
-  }
-  showApp();
-}
-
-document.getElementById('gateBtn').addEventListener('click', tryLogin);
-['gateEmail','gateInput'].forEach(id=>{
-  document.getElementById(id).addEventListener('keydown', e=>{ if(e.key === 'Enter') tryLogin(); });
-});
-document.getElementById('btnLogout').addEventListener('click', async ()=>{
-  await sb.auth.signOut();
-  location.reload();
-});
-
-(async function checkSession(){
-  const { data: { session } } = await sb.auth.getSession();
-  if(session){ showApp(); } else { showGate(); }
-})();
-
 let cheques = [];        // todos los cheques desde supabase
 let current = new Date(2026, 8, 1); // setiembre 2026 (mes index 8)
 
@@ -408,16 +329,34 @@ async function loadCheques(){
 function populateDestinatarioFilter(){
   const set = new Set(cheques.map(c=>c.destinatario).filter(Boolean));
   const sel = document.getElementById('fDestinatario');
-  const prevSelected = Array.from(sel.selectedOptions).map(o=>o.value);
-  sel.innerHTML = '<option value="">TODOS</option>' + [...set].sort().map(d=>`<option value="${d}">${d}</option>`).join('');
-  Array.from(sel.options).forEach(o=>{ if(prevSelected.includes(o.value)) o.selected = true; });
+  const current = sel.value;
+  sel.innerHTML = '<option value="">Todos</option>' + [...set].sort().map(d=>`<option>${d}</option>`).join('');
+  sel.value = current;
   document.getElementById('destList').innerHTML = [...set].sort().map(d=>`<option value="${d}">`).join('');
+
+  const nchSet = new Set(cheques.map(c=>c.n_cheque).filter(Boolean));
+  document.getElementById('nchequeList').innerHTML = [...nchSet].sort().map(n=>`<option value="${n}">`).join('');
 }
 
+function buscarPorNCheque(valor){
+  valor = (valor||'').trim();
+  if(!valor) return;
+  const encontrado = cheques.find(c=> String(c.n_cheque||'') === valor);
+  if(!encontrado){ return; } // no interrumpe con alert, es un buscador discreto
+  const [yy,mm,dd] = encontrado.fecha_cobro.split('-').map(Number);
+  current = new Date(yy, mm-1, 1);
+  renderAll();
+  openEdit(encontrado.id);
+  document.getElementById('fBuscarNCheque').value = '';
+}
+document.getElementById('fBuscarNCheque').addEventListener('change', (e)=>buscarPorNCheque(e.target.value));
+document.getElementById('fBuscarNCheque').addEventListener('keydown', (e)=>{
+  if(e.key === 'Enter') buscarPorNCheque(e.target.value);
+});
+
 function getFilters(){
-  const destSel = document.getElementById('fDestinatario');
   return {
-    destinatario: Array.from(destSel.selectedOptions).map(o=>o.value).filter(v=>v!==''), // vacío (TODOS) = sin filtro
+    destinatario: document.getElementById('fDestinatario').value,
     estado: document.getElementById('fEstado').value,
     moneda: document.getElementById('fMoneda').value,
     desde: document.getElementById('fDesde').value,
@@ -427,7 +366,7 @@ function getFilters(){
 
 function applyFilters(list, f){
   return list.filter(c=>{
-    if(f.destinatario && f.destinatario.length > 0 && !f.destinatario.includes(c.destinatario)) return false;
+    if(f.destinatario && c.destinatario !== f.destinatario) return false;
     if(f.estado === 'pendiente' && c.cobrado) return false;
     if(f.estado === 'cobrado' && !c.cobrado) return false;
     if(f.moneda && c.moneda !== f.moneda) return false;
@@ -456,57 +395,48 @@ function renderCalendar(){
   const startOffset = (firstDay.getDay() + 6) % 7;
   const totalDays = lastDay.getDate();
 
-  // Encabezado de días de la semana (una sola fila, en <thead>)
-  document.getElementById('calendarDow').innerHTML =
-    DOW.map(d=>`<th class="dow">${d}</th>`).join('');
+  const cal = document.getElementById('calendar');
 
   const monthCheques = applyFilters(cheques.filter(c=>{
     const d = c.fecha_cobro;
     return d >= isoLocal(firstDay) && d <= isoLocal(lastDay);
   }), f);
 
-  // Armamos la lista plana de celdas (blancos + días) y después la partimos en filas de 7.
-  // Al ser filas <tr> reales, el navegador pagina semana completa, nunca corta una fila al medio.
-  const cellsHtml = [];
-
+  const cells = [];
   for(let i=0;i<startOffset;i++){
-    cellsHtml.push(`<td class="day blank"></td>`);
+    cells.push(`<td class="day blank"></td>`);
   }
-
   for(let day=1; day<=totalDays; day++){
     const dateObj = new Date(y,m,day);
     const iso = isoLocal(dateObj);
     const dayCheques = monthCheques.filter(c=>c.fecha_cobro === iso);
     let chipsHtml = dayCheques.map(c=>{
-      const cls = c.cobrado ? 'cobrado' : (c.moneda==='USD' ? 'usd' : '');
+      const cls = c.cobrado ? 'cobrado' : '';
       return `<div class="chip ${cls}" data-id="${c.id}">
         <span class="dest">${c.destinatario||''}</span>
         <span class="imp">${c.moneda} ${fmtMoney(c.importe)}</span>
       </div>`;
     }).join('');
-    cellsHtml.push(`<td class="day" data-date="${iso}">
+    cells.push(`<td class="day" data-date="${iso}">
       <div class="num"><span>${day}</span><span class="add no-print" data-date="${iso}">+</span></div>
       ${chipsHtml}
     </td>`);
   }
-
-  // Completamos la última semana con celdas en blanco para que todas las filas tengan 7 columnas
-  while(cellsHtml.length % 7 !== 0){
-    cellsHtml.push(`<td class="day blank"></td>`);
+  while(cells.length % 7 !== 0){
+    cells.push(`<td class="day blank"></td>`);
   }
 
   let rowsHtml = '';
-  for(let i=0; i<cellsHtml.length; i+=7){
-    rowsHtml += `<tr class="calendar-week">${cellsHtml.slice(i, i+7).join('')}</tr>`;
+  for(let i=0;i<cells.length;i+=7){
+    rowsHtml += `<tr>${cells.slice(i,i+7).join('')}</tr>`;
   }
 
-  const body = document.getElementById('calendarBody');
-  body.innerHTML = rowsHtml;
+  cal.innerHTML = `<thead><tr>${DOW.map(d=>`<th class="dow">${d}</th>`).join('')}</tr></thead><tbody>${rowsHtml}</tbody>`;
 
-  body.querySelectorAll('.chip').forEach(el=>{
+  cal.querySelectorAll('.chip').forEach(el=>{
     el.addEventListener('click', ()=>openEdit(el.dataset.id));
   });
-  body.querySelectorAll('.add').forEach(el=>{
+  cal.querySelectorAll('.add').forEach(el=>{
     el.addEventListener('click', ()=>openNew(el.dataset.date));
   });
 }
@@ -665,20 +595,18 @@ document.getElementById('btnExport').addEventListener('click', ()=>{
 
 document.getElementById('btnPrint').addEventListener('click', ()=>window.print());
 
-// BACKUP COMPLETO (todos los cheques, todas las fechas, sin filtrar)
+// BACKUP COMPLETO: descarga TODOS los cheques (todas las fechas) como Excel, sin filtros
 document.getElementById('btnBackup').addEventListener('click', ()=>{
-  if(cheques.length === 0){ alert('No hay cheques cargados todavía.'); return; }
-  const rows = [["Fecha","Moneda","Importe","Cobrado","N° Cheque","Destinatario","ID"]];
-  const sorted = [...cheques].sort((a,b)=> a.fecha_cobro < b.fecha_cobro ? -1 : 1);
-  sorted.forEach(c=>{
+  const rows = [["Fecha de cobro","Moneda","Importe","Cobrado","N° Cheque","Destinatario","ID"]];
+  [...cheques].sort((a,b)=> a.fecha_cobro < b.fecha_cobro ? -1 : 1).forEach(c=>{
     rows.push([c.fecha_cobro, c.moneda, c.importe, c.cobrado?"Si":"No", c.n_cheque||"", c.destinatario||"", c.id]);
   });
   const ws = XLSX.utils.aoa_to_sheet(rows);
-  ws['!cols'] = [{wch:11},{wch:7},{wch:11},{wch:8},{wch:12},{wch:20},{wch:8}];
+  ws['!cols'] = [{wch:12},{wch:7},{wch:11},{wch:8},{wch:12},{wch:20},{wch:38}];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Backup completo");
-  const hoy = isoLocal(new Date());
-  XLSX.writeFile(wb, `backup_cheques_TODOS_${hoy}.xlsx`);
+  const fecha = isoLocal(new Date());
+  XLSX.writeFile(wb, `backup_cheques_${fecha}.xlsx`);
 });
 
 // IMPORTAR HISTORICO (una sola vez)
@@ -706,6 +634,7 @@ document.getElementById('historicoBtn').addEventListener('click', async ()=>{
   await loadCheques();
 });
 
+loadCheques();
 </script>
 </body>
 </html>
