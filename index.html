@@ -200,8 +200,8 @@ footer.hist{margin-top:30px;padding-top:14px;border-top:1px dashed var(--line);f
 
   <div class="toolbar no-print">
     <div class="field">
-      <label>Destinatario</label>
-      <select id="fDestinatario"><option value="">Todos</option></select>
+      <label>Destinatario (Ctrl+clic = varios)</label>
+      <select id="fDestinatario" multiple size="4" style="min-width:150px;"></select>
     </div>
     <div class="field">
       <label>Estado</label>
@@ -329,9 +329,9 @@ async function loadCheques(){
 function populateDestinatarioFilter(){
   const set = new Set(cheques.map(c=>c.destinatario).filter(Boolean));
   const sel = document.getElementById('fDestinatario');
-  const current = sel.value;
-  sel.innerHTML = '<option value="">Todos</option>' + [...set].sort().map(d=>`<option>${d}</option>`).join('');
-  sel.value = current;
+  const previamenteElegidos = new Set(Array.from(sel.selectedOptions).map(o=>o.value));
+  sel.innerHTML = [...set].sort().map(d=>`<option value="${d}">${d}</option>`).join('');
+  Array.from(sel.options).forEach(o=>{ if(previamenteElegidos.has(o.value)) o.selected = true; });
   document.getElementById('destList').innerHTML = [...set].sort().map(d=>`<option value="${d}">`).join('');
 
   const nchSet = new Set(cheques.map(c=>c.n_cheque).filter(Boolean));
@@ -356,7 +356,7 @@ document.getElementById('fBuscarNCheque').addEventListener('keydown', (e)=>{
 
 function getFilters(){
   return {
-    destinatario: document.getElementById('fDestinatario').value,
+    destinatario: Array.from(document.getElementById('fDestinatario').selectedOptions).map(o=>o.value),
     estado: document.getElementById('fEstado').value,
     moneda: document.getElementById('fMoneda').value,
     desde: document.getElementById('fDesde').value,
@@ -366,7 +366,7 @@ function getFilters(){
 
 function applyFilters(list, f){
   return list.filter(c=>{
-    if(f.destinatario && c.destinatario !== f.destinatario) return false;
+    if(f.destinatario.length && !f.destinatario.includes(c.destinatario)) return false;
     if(f.estado === 'pendiente' && c.cobrado) return false;
     if(f.estado === 'cobrado' && !c.cobrado) return false;
     if(f.moneda && c.moneda !== f.moneda) return false;
