@@ -208,6 +208,7 @@ footer.hist{margin-top:30px;padding-top:14px;border-top:1px dashed var(--line);f
     <div class="field">
       <label>Destinatario (Ctrl+clic = varios)</label>
       <select id="fDestinatario" multiple size="4" style="min-width:150px;"></select>
+      <span id="btnLimpiarDest" class="no-print" style="font-size:11px;text-decoration:underline;cursor:pointer;color:var(--ink-soft);margin-top:2px;">Ver todos</span>
     </div>
     <div class="field">
       <label>Estado</label>
@@ -572,6 +573,10 @@ document.getElementById('nextMonth').addEventListener('click', ()=>{
 // FILTERS
 ['fDestinatario','fEstado','fMoneda','fDesde','fHasta'].forEach(id=>{
   document.getElementById(id).addEventListener('change', renderAll);
+});
+document.getElementById('btnLimpiarDest').addEventListener('click', ()=>{
+  Array.from(document.getElementById('fDestinatario').options).forEach(o=>o.selected=false);
+  renderAll();
 });
 
 // EXPORT EXCEL (mes actual, formato calendario)
