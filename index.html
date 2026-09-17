@@ -179,7 +179,13 @@ footer.hist{margin-top:30px;padding-top:14px;border-top:1px dashed var(--line);f
 @media print{
   .toolbar,.no-print,footer.hist{display:none !important;}
   body{background:#fff;}
-  .day{min-height:70px;}
+  .day{min-height:70px;height:auto !important;}
+  .chip{white-space:normal !important;flex-direction:column !important;align-items:flex-start !important;gap:1px;}
+  .chip .dest{
+    white-space:normal !important;
+    overflow:visible !important;
+    text-overflow:clip !important;
+  }
 }
 </style>
 </head>
